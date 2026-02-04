@@ -12,24 +12,17 @@
  *   Broadcom, Inc. - initial API and implementation
  */
 import { GotoInstruction, PerformInstruction, VNCell } from "./instructions";
-import { VirtualMachine, VirtualMachineState } from "./vm";
-
-class OptimizerItem {
-  constructor(
-    public state: VirtualMachineState,
-    public conditional: boolean,
-  ) {}
-}
+import { VirtualMachine } from "./vm";
 
 /**
  * Optimizer stops COBOL Virtual Machine if it process the same COBOL instruction with the same VM state
  */
 export class IbmOptimizer {
-  private stateMap: Map<number, Map<number, OptimizerItem[]>>;
+  private stateMap: Map<number, Set<string>>;
   public totalStates: number = 0;
 
   public constructor() {
-    this.stateMap = new Map<number, Map<number, OptimizerItem[]>>();
+    this.stateMap = new Map<number, Set<string>>();
   }
 
   /**
@@ -50,52 +43,20 @@ export class IbmOptimizer {
     }
 
     const vmState = vm.generateState();
-    const vmHash = this.calculateHash(vmState);
+    const hash = vmState.hash;
 
-    if (!currentInstruction.isProcessed()) {
-      const states =
-        this.stateMap.get(vm.ic()) ?? new Map<number, OptimizerItem[]>();
-      const array = states.get(vmHash) ?? [];
-
-      array.push(new OptimizerItem(vmState, vm.isConditional()));
-      states.set(vmHash, array);
+    let states = this.stateMap.get(vm.ic());
+    if (!states) {
+      states = new Set<string>();
       this.stateMap.set(vm.ic(), states);
-      this.totalStates++;
-      return false;
     }
 
-    const states =
-      this.stateMap.get(vm.ic()) ?? new Map<number, OptimizerItem[]>();
-    const array = states.get(vmHash) ?? [];
-
-    for (const item of array) {
-      if (item.state.equals(vmState)) {
-        if (!vm.isConditional()) {
-          if (item.conditional) {
-            item.conditional = false;
-            return false;
-          }
-          return true;
-        }
-        return true;
-      }
+    if (states.has(hash)) {
+      return true;
     }
-    array.push(new OptimizerItem(vmState, vm.isConditional()));
-    states.set(vmHash, array);
-    this.stateMap.set(vm.ic(), states);
+
+    states.add(hash);
     this.totalStates++;
-
     return false;
-  }
-
-  private calculateHash(state: VirtualMachineState): number {
-    const prime = 0x01000193;
-    let h = 0x811c9dc5;
-    const str = state.fingerprint;
-
-    for (let i = 0; i < str.length; i++) {
-      h = (h * prime) ^ str.charCodeAt(i);
-    }
-    return h;
   }
 }

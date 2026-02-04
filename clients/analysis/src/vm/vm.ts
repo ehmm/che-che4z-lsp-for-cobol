@@ -364,18 +364,21 @@ export class VmContext {
   }
 }
 
+import { hash64 } from "../utils";
+
 /**
- * COBOL Virtual Machine State that holds a compact fingerprint of VnCell states, ALTER, and sticky statements
+ * COBOL Virtual Machine State that holds a compact fingerprint hash of VnCell states, ALTER, and sticky statements
  */
 export class VirtualMachineState {
-  public readonly fingerprint: string;
+  public readonly hash: string;
 
   public constructor(
     vnCellStates: Map<number, number>,
     alterMap: Map<number, number>,
     stickyMap: Map<string, number>,
   ) {
-    this.fingerprint = this.computeFingerprint(vnCellStates, alterMap, stickyMap);
+    const fingerprint = this.computeFingerprint(vnCellStates, alterMap, stickyMap);
+    this.hash = hash64(fingerprint);
   }
 
   private computeFingerprint(
@@ -413,7 +416,7 @@ export class VirtualMachineState {
    * @returns true if states are equal and false otherwise
    */
   public equals(state: VirtualMachineState): boolean {
-    return this.fingerprint === state.fingerprint;
+    return this.hash === state.hash;
   }
 }
 

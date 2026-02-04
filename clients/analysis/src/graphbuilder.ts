@@ -67,8 +67,8 @@ const TELEMETRY_ANALYSIS_LIMIT = "ccf.analysis.limit";
 export class GraphBuilder {
   private graph: Graph;
 
-  public constructor(head: Program) {
-    this.graph = new Graph(head);
+  public constructor(head: Program, writer?: (data: any) => void) {
+    this.graph = new Graph(head, writer);
   }
 
   public getGraph(): Graph {
@@ -110,6 +110,7 @@ export class ControlFlowGraphBuilder {
     private maxVMCount: number,
     private deadCodeSeverity: DiagnosticSeverityDto | undefined,
     private channel?: Channel,
+    private writer?: (data: any) => void,
   ) {}
 
   /**
@@ -126,7 +127,7 @@ export class ControlFlowGraphBuilder {
       const listing = new ProgramListing(program);
       listing.getUris().forEach((uri) => locationsSet.add(uri));
 
-      const listener = new BuildGraphListener(program, diagnostics, events);
+      const listener = new BuildGraphListener(program, diagnostics, events, this.writer);
       const optimizer = new IbmOptimizer();
 
       const processor = new VirtualProcessor(
@@ -163,9 +164,10 @@ class BuildGraphListener implements VirtualProcessorListener {
   public constructor(
     private program: Program,
     private diagnostics: Map<string, DiagnosticDto[]>,
-    private events: EventDto[]
+    private events: EventDto[],
+    writer?: (data: any) => void
   ) {
-    this.builder = new GraphBuilder(program);
+    this.builder = new GraphBuilder(program, writer);
     this.latestLocation = {
       uri: program.location.uri,
       start: { character: 1, line: program.location.end.line },
