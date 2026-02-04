@@ -6,6 +6,9 @@
   },
   "description": "Analysis logic for Cobol Control Flow",
   "main": "lib/index.js",
+  "bin": {
+    "ccf-cli": "./lib/bin/ccf-cli.js"
+  },
   "keywords": [
     "Cobol Control Flow"
   ],
@@ -18,9 +21,12 @@
     "@types/jest": "^29.5.14",
     "ts-jest": "^29.2.5",
     "jest": "^29.7.0",
-    "prettier": "3.3.3"
+    "prettier": "3.3.3",
+    "@types/node": "^20.0.0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "commander": "^11.0.0"
+  },
   "scripts": {
     "compile": "tsc",
     "test": "jest",

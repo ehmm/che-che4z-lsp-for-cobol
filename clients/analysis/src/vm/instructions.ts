@@ -475,6 +475,15 @@ export class SqlWheneverInstruction extends SimpleCobolInstruction {
 }
 
 /**
+ * CALL instruction (External program call)
+ */
+export class CallInstruction extends ImportantCobolInstruction {
+  public constructor(node: CFASTNode) {
+    super(node);
+  }
+}
+
+/**
  * Any EXEC SQL instruction (except SQL WHENEVER)
  */
 export class SqlInstruction extends SimpleCobolInstruction {

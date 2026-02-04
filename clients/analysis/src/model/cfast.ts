@@ -55,7 +55,8 @@ export type NodeType =
   | "endexec"
   | "use"
   | "usefordebugging"
-  | "exitperform";
+  | "exitperform"
+  | "call";
 export type NodeId = number;
 
 export type HandleAbendType = "CANCEL" | "PROGRAM" | "LABEL" | "RESET";
@@ -199,4 +200,9 @@ export type SqlWhenever = CFASTNode & {
   wheneverCondition: WheneverConditionType;
   wheneverType: WheneverType;
   value: string;
+};
+
+export type Call = CFASTNode & {
+  type: "call";
+  targetName: string;
 };

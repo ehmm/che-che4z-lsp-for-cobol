@@ -23,11 +23,13 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import org.eclipse.lsp.cobol.cfg.CFASTBuilder;
 import org.eclipse.lsp.cobol.cli.di.CliModule;
+import org.eclipse.lsp.cobol.cli.modules.CliClientProvider;
 import org.eclipse.lsp.cobol.common.dialects.CobolLanguageId;
 import org.eclipse.lsp.cobol.common.model.tree.ProgramNode;
 import org.eclipse.lsp.cobol.common.pipeline.StageResult;
@@ -52,6 +54,9 @@ public class CliCFAST implements Callable<Integer> {
       if (Objects.nonNull(workspace)) {
         Injector diCtx = Guice.createInjector(new CliModule());
         CFASTBuilder builder = diCtx.getInstance(CFASTBuilder.class);
+        CliClientProvider cliClientProvider = diCtx.getInstance(CliClientProvider.class);
+        cliClientProvider.setCpyPaths(new ArrayList<>());
+        cliClientProvider.setCpyExt(Arrays.asList("", ".cpy", ".CPY"));
 
         File[] paths = workspace.toFile().listFiles();
         if (paths == null) {
@@ -97,7 +102,8 @@ public class CliCFAST implements Callable<Integer> {
   }
 
   private static boolean isCobolFile(File file) {
-    return "cbl".equals(Files.getFileExtension(file.getAbsolutePath()));
+    String extension = Files.getFileExtension(file.getAbsolutePath());
+    return "cbl".equalsIgnoreCase(extension);
   }
 
   private static String getCFASTFileName(Path file) {

@@ -56,6 +56,7 @@ import {
   ExitParagraph,
   ConditionExit,
   CicsAbendInstruction,
+  CallInstruction,
 } from "./instructions";
 import { VmContext } from "./vm";
 import { ConditionInfo, ListingUtils } from "./utils";
@@ -705,6 +706,11 @@ export class ProgramListing {
       this.instructions.push(
         new XmlParsePlaceholder(node, xml.target, xml.thru ?? xml.target),
       );
+      return;
+    }
+
+    if (node.type === "call") {
+      this.instructions.push(new CallInstruction(node));
       return;
     }
 
