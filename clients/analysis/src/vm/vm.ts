@@ -25,6 +25,26 @@ const HANDLE_ABEND_KEY: string = "%handle_abend%";
 const WHENEVER_KEY: string = "%sql_whenever%";
 
 /**
+ * Persistent Linked List node for execution paths
+ */
+class PathNode {
+  constructor(
+    public readonly instruction: CobolInstruction,
+    public readonly parent: PathNode | undefined,
+  ) {}
+
+  public toArray(): CobolInstruction[] {
+    const result: CobolInstruction[] = [];
+    let current: PathNode | undefined = this;
+    while (current) {
+      result.unshift(current.instruction);
+      current = current.parent;
+    }
+    return result;
+  }
+}
+
+/**
  * VnCell position storage item for the PERFORM instruction
  */
 class PerformStorageItem {
@@ -32,6 +52,7 @@ class PerformStorageItem {
     public vnCellPosition: number,
     public redirectPosition: number,
     public programUnit: Paragraph | Section | Program,
+    public pathHead: PathNode | undefined,
   ) {}
 }
 
@@ -46,7 +67,7 @@ export class VmContext {
   private stickyMap: Map<string, number>;
   private redirectMap: Map<number, number>;
   private storage: Map<number, PerformStorageItem>;
-  private path: CobolInstruction[];
+  private pathHead: PathNode | undefined;
   private nestedLevel: number = 0;
   private static staticInt = 0;
 
@@ -61,7 +82,7 @@ export class VmContext {
     this.stickyMap = new Map<string, number>();
     this.redirectMap = new Map<number, number>();
     this.storage = new Map<number, PerformStorageItem>();
-    this.path = [];
+    this.pathHead = undefined;
   }
 
   public getNestedLevel(): number {
@@ -89,7 +110,7 @@ export class VmContext {
   public addToPath() {
     const instruction = this.getInstructionByPosition(this.ic);
     if (instruction) {
-      this.path.push(instruction);
+      this.pathHead = new PathNode(instruction, this.pathHead);
     }
   }
 
@@ -98,7 +119,7 @@ export class VmContext {
    * @returns a VM path as a array of executed cobol instructions
    */
   public getPath(): CobolInstruction[] {
-    return this.path;
+    return this.pathHead ? this.pathHead.toArray() : [];
   }
 
   /**
@@ -129,6 +150,7 @@ export class VmContext {
       defaultRedirectPosition - 1,
       prevPosition,
       this.getCurrentProgramUnit(),
+      this.pathHead,
     );
     this.storage.set(performPosition, storageItem);
 
@@ -149,17 +171,8 @@ export class VmContext {
 
       this.storage.delete(performPosition);
       this.returnCurrentProgramUnit(storageItem.programUnit);
-    }
-
-    const performInstruction = this.getInstructionByPosition(performPosition);
-    for (let i = this.path.length - 1; i > 0; i--) {
-      if (
-        this.path[i].getInitialNode()?.id ===
-        performInstruction?.getInitialNode()?.id
-      ) {
-        this.path.length = i;
-        break;
-      }
+      // O(1) Path Truncation: Restore the path head to what it was before the PERFORM
+      this.pathHead = storageItem.pathHead;
     }
   }
 
@@ -278,7 +291,7 @@ export class VmContext {
     newContext.stickyMap = new Map<string, number>(this.stickyMap);
 
     newContext.storage = new Map(this.storage);
-    newContext.path = [...this.path];
+    newContext.pathHead = this.pathHead;
 
     newContext.nestedLevel = this.nestedLevel;
 
@@ -352,53 +365,55 @@ export class VmContext {
 }
 
 /**
- * COBOL Virtual Machine State that holds VnCell states and also ALTER and HANDLE ABEND/WHENEVER statements maps
+ * COBOL Virtual Machine State that holds a compact fingerprint of VnCell states, ALTER, and sticky statements
  */
 export class VirtualMachineState {
+  public readonly fingerprint: string;
+
   public constructor(
-    public vnCellStates: Map<number, number>,
-    public alterMap: Map<number, number>,
-    public stickyMap: Map<string, number>,
-  ) {}
+    vnCellStates: Map<number, number>,
+    alterMap: Map<number, number>,
+    stickyMap: Map<string, number>,
+  ) {
+    this.fingerprint = this.computeFingerprint(vnCellStates, alterMap, stickyMap);
+  }
+
+  private computeFingerprint(
+    vnCellStates: Map<number, number>,
+    alterMap: Map<number, number>,
+    stickyMap: Map<string, number>,
+  ): string {
+    let result = "v:";
+    if (vnCellStates.size > 0) {
+      result += Array.from(vnCellStates.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([k, v]) => `${k}:${v}`)
+        .join(",");
+    }
+    result += "|a:";
+    if (alterMap.size > 0) {
+      result += Array.from(alterMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([k, v]) => `${k}:${v}`)
+        .join(",");
+    }
+    result += "|s:";
+    if (stickyMap.size > 0) {
+      result += Array.from(stickyMap.entries())
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .map(([k, v]) => `${k}:${v}`)
+        .join(",");
+    }
+    return result;
+  }
 
   /**
-   * Indicates if current COBOL Virtual Machine state is equals to a given VM state
+   * Indicates if current COBOL Virtual Machine state is equal to a given VM state
    * @param state VM state to compare
-   * @returns true if states are equals and false otherwise
+   * @returns true if states are equal and false otherwise
    */
   public equals(state: VirtualMachineState): boolean {
-    if (state.vnCellStates.size !== this.vnCellStates.size) {
-      return false;
-    }
-
-    for (const key of state.vnCellStates.keys()) {
-      if (state.vnCellStates.get(key) !== this.vnCellStates.get(key)) {
-        return false;
-      }
-    }
-
-    // Compare alter maps
-    if (this.alterMap.size !== state.alterMap.size) {
-      return false;
-    }
-
-    for (const key of state.alterMap.keys()) {
-      if (state.alterMap.get(key) !== this.alterMap.get(key)) {
-        return false;
-      }
-    }
-
-    // Compare sticky maps
-    if (this.stickyMap.size !== state.stickyMap.size) {
-      return false;
-    }
-
-    for (const key of state.stickyMap.keys()) {
-      if (state.stickyMap.get(key) !== this.stickyMap.get(key)) {
-        return false;
-      }
-    }
-    return true;
+    return this.fingerprint === state.fingerprint;
   }
 }
 

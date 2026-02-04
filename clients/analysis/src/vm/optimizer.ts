@@ -26,6 +26,7 @@ class OptimizerItem {
  */
 export class IbmOptimizer {
   private stateMap: Map<number, Map<number, OptimizerItem[]>>;
+  public totalStates: number = 0;
 
   public constructor() {
     this.stateMap = new Map<number, Map<number, OptimizerItem[]>>();
@@ -59,6 +60,7 @@ export class IbmOptimizer {
       array.push(new OptimizerItem(vmState, vm.isConditional()));
       states.set(vmHash, array);
       this.stateMap.set(vm.ic(), states);
+      this.totalStates++;
       return false;
     }
 
@@ -81,6 +83,7 @@ export class IbmOptimizer {
     array.push(new OptimizerItem(vmState, vm.isConditional()));
     states.set(vmHash, array);
     this.stateMap.set(vm.ic(), states);
+    this.totalStates++;
 
     return false;
   }
@@ -88,12 +91,10 @@ export class IbmOptimizer {
   private calculateHash(state: VirtualMachineState): number {
     const prime = 0x01000193;
     let h = 0x811c9dc5;
-    const keys = [...state.vnCellStates.keys()].sort((a, b) => a - b);
+    const str = state.fingerprint;
 
-    for (const key of keys) {
-      const value = state.vnCellStates.get(key) ?? 0;
-      h = (h * prime) ^ key;
-      h = (h * prime) ^ value;
+    for (let i = 0; i < str.length; i++) {
+      h = (h * prime) ^ str.charCodeAt(i);
     }
     return h;
   }

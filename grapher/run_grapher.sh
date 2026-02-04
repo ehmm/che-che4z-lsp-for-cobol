@@ -3,14 +3,27 @@ set -e
 set -x
 
 # Help message
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <input_cobol_file> <output_json_path>"
+if [ "$#" -lt 2 ]; then
+    echo "Usage: $0 <input_cobol_file> <output_json_path> [--max-vms <number>] [--memory <MB>]"
     exit 1
 fi
 
 # Resolve absolute paths
 INPUT_PATH=$(realpath "$1")
 OUTPUT_PATH=$(realpath "$2")
+shift 2
+
+MAX_VMS="1000"
+MEMORY="2048"
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --max-vms) MAX_VMS="$2"; shift ;;
+        --memory) MEMORY="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
 
 if [ ! -f "$INPUT_PATH" ]; then
     echo "Error: Input file $INPUT_PATH not found."
@@ -38,13 +51,14 @@ cp "$INPUT_PATH" "$TEMP_IN_DIR/"
 echo "Starting Control Flow Analysis for $INPUT_FILE..."
 
 # Run the Docker container
+
 # We mount the isolated TEMP_IN_DIR so the Java engine only sees the requested file
 
 docker run --rm \
   -v "$TEMP_IN_DIR":/data/input \
   -v "$TEMP_OUT_DIR":/data/output \
-  grapher:latest -i "/data/input/$INPUT_FILE" -o "/data/output/result.json"
-
+  -e NODE_OPTIONS="--max-old-space-size=$MEMORY" \
+  grapher:latest -i "/data/input/$INPUT_FILE" -o "/data/output/result.json" --max-vms "$MAX_VMS"
 
 
 # Check if the output was generated and copy it to the target path

@@ -19,6 +19,7 @@ import { cfastNodeInfo, Channel } from "./logger";
 
 export class VirtualProcessor {
   private vms: VirtualMachine[] = [];
+  private totalSteps: number = 0;
 
   public constructor(
     programListing: ProgramListing,
@@ -35,9 +36,20 @@ export class VirtualProcessor {
    */
   public run() {
     while (this.vms.length > 0) {
-      const vm = this.vms[0];
-      if (!this.step(vm)) {
-        this.remove(vm);
+      const vm = this.vms.pop()!;
+      this.totalSteps++;
+
+      if (this.totalSteps % 5000 === 0) {
+        const heapUsed = Math.round(
+          process.memoryUsage().heapUsed / 1024 / 1024,
+        );
+        console.log(
+          `[Heartbeat] Steps: ${this.totalSteps.toLocaleString()} | Active VMs: ${this.vms.length} | Total States: ${this.optimizer.totalStates.toLocaleString()} | Heap: ${heapUsed}MB`,
+        );
+      }
+
+      if (this.step(vm)) {
+        this.vms.push(vm);
       }
       // Guard condition
       if (this.vms.length > this.maxVmCount) {
