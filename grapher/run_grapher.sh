@@ -1,10 +1,9 @@
 #!/bin/bash
 set -e
-set -x
 
 # Help message
 if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 <input_cobol_file> <output_json_path> [--max-vms <number>] [--memory <MB>]"
+    echo "Usage: $0 <input_cobol_file> <output_json_path> [--max-vms <number>] [--memory <MB>] [--use-go]"
     exit 1
 fi
 
@@ -15,11 +14,13 @@ shift 2
 
 MAX_VMS="1000"
 MEMORY="2048"
+USE_GO="false"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --max-vms) MAX_VMS="$2"; shift ;;
         --memory) MEMORY="$2"; shift ;;
+        --use-go) USE_GO="true" ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -32,34 +33,25 @@ fi
 
 INPUT_FILE=$(basename "$INPUT_PATH")
 
-
-
 # Create temporary directories for isolated input and output
-
 TEMP_IN_DIR=$(mktemp -d)
 TEMP_OUT_DIR=$(mktemp -d)
 
-
-
 # Ensure cleanup of the temporary directories on exit
-
 trap 'rm -rf "$TEMP_IN_DIR" "$TEMP_OUT_DIR"' EXIT
 
 # Copy the specific input file to the isolated input directory
-
 cp "$INPUT_PATH" "$TEMP_IN_DIR/"
-echo "Starting Control Flow Analysis for $INPUT_FILE..."
+
+echo "Starting Control Flow Analysis for $INPUT_FILE (Use Go: $USE_GO)..."
 
 # Run the Docker container
-
-# We mount the isolated TEMP_IN_DIR so the Java engine only sees the requested file
-
 docker run --rm \
   -v "$TEMP_IN_DIR":/data/input \
   -v "$TEMP_OUT_DIR":/data/output \
   -e NODE_OPTIONS="--max-old-space-size=$MEMORY" \
+  -e USE_GO_ANALYSIS="$USE_GO" \
   grapher:latest -i "/data/input/$INPUT_FILE" -o "/data/output/result.json" --max-vms "$MAX_VMS"
-
 
 # Check if the output was generated and copy it to the target path
 if [ -f "$TEMP_OUT_DIR/result.json" ]; then

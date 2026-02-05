@@ -15,7 +15,14 @@ WORKDIR /src/clients/analysis
 # Install dependencies and compile - using install instead of ci because we modified package.json
 RUN npm install && npm run compile
 
-# Stage 3: Final Runtime Image
+# Stage 3: Build the Go Analysis Package
+FROM golang:1.21-alpine AS go-build
+WORKDIR /src
+COPY clients/golang /src/clients/golang
+WORKDIR /src/clients/golang
+RUN go build -o /ccf-cli-go cmd/ccf-cli/main.go
+
+# Stage 4: Final Runtime Image
 FROM eclipse-temurin:21-jre-jammy
 # Install Node.js in the final JRE image
 RUN apt-get update && apt-get install -y curl && \
@@ -27,6 +34,9 @@ WORKDIR /app
 
 # Copy the Java JAR
 COPY --from=java-build /src/server/engine/target/server.jar /app/bin/server.jar
+
+# Copy the Go Binary
+COPY --from=go-build /ccf-cli-go /app/bin/ccf-cli-go
 
 # Copy the Compiled TypeScript App
 COPY --from=ts-build /src/clients/analysis /app/analysis
