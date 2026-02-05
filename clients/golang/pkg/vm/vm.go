@@ -72,15 +72,15 @@ type VirtualMachine struct {
 	Context *VmContext
 }
 
-func (vm *VirtualMachine) Step() []*VirtualMachine {
+func (vm *VirtualMachine) Step() ([]*VirtualMachine, bool) {
 	inst := vm.Context.ProgramListing.GetInstructionByPosition(vm.Context.IC)
 	if inst == nil {
-		return nil
+		return nil, false
 	}
 
 	nextPositions := inst.Execute(vm.Context)
 	if len(nextPositions) == 0 {
-		return nil
+		return nil, false
 	}
 
 	var forked []*VirtualMachine
@@ -93,5 +93,5 @@ func (vm *VirtualMachine) Step() []*VirtualMachine {
 
 	// Update current VM with the first path
 	vm.Context.IC = nextPositions[0]
-	return forked
+	return forked, true
 }

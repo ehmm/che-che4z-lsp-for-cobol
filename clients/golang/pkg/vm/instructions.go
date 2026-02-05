@@ -89,6 +89,7 @@ type PerformInstruction struct {
 }
 
 func (p *PerformInstruction) Execute(ctx *VmContext) []int {
+	p.ImportantInstruction.Execute(ctx)
 	thruInst := ctx.GetInstructionByPosition(p.Thru)
 	if pu, ok := thruInst.(*ProgramUnit); ok {
 		ctx.Redirect(pu.VnCellPosition+1, ctx.IC)
@@ -103,6 +104,7 @@ type GotoInstruction struct {
 }
 
 func (g *GotoInstruction) Execute(ctx *VmContext) []int {
+	g.ImportantInstruction.Execute(ctx)
 	alterMap := ctx.GetAlterMap()
 	pos := g.Position
 	for {
@@ -207,4 +209,133 @@ func (c *ConditionBranchEnd) Execute(ctx *VmContext) []int {
 
 type CallInstruction struct {
 	ImportantInstruction
+}
+
+type RestoreProgramUnit struct {
+	SimpleInstruction
+}
+
+func (r *RestoreProgramUnit) Execute(ctx *VmContext) []int {
+	node := r.GetInitialNode()
+	if node != nil {
+		ctx.RestoreCurrentProgramUnit(node.ID)
+	}
+	return []int{ctx.IC + 1}
+}
+
+func (r *RestoreProgramUnit) IsProcessed() bool { return true }
+
+type ExitSection struct {
+	ImportantInstruction
+	SectionVnCellPosition int
+}
+
+func (e *ExitSection) Execute(ctx *VmContext) []int {
+	e.ImportantInstruction.Execute(ctx)
+	return []int{e.SectionVnCellPosition}
+}
+
+type ExitParagraph struct {
+	ImportantInstruction
+	ParagraphVnCellPosition int
+}
+
+func (e *ExitParagraph) Execute(ctx *VmContext) []int {
+	e.ImportantInstruction.Execute(ctx)
+	return []int{e.ParagraphVnCellPosition}
+}
+
+type AlterInstruction struct {
+	ImportantInstruction
+	From int
+	To   int
+}
+
+func (a *AlterInstruction) Execute(ctx *VmContext) []int {
+	ctx.AddAtler(a.From, a.To)
+	return a.ImportantInstruction.Execute(ctx)
+}
+
+type CicsHandleAbendInstruction struct {
+	SimpleInstruction
+	HandleType string
+	Size       int
+}
+
+func (c *CicsHandleAbendInstruction) Execute(ctx *VmContext) []int {
+	if c.HandleType == "LABEL" {
+		ctx.AddHandleAbend()
+	}
+	if c.HandleType == "RESET" {
+		ctx.ResetHandleAbend()
+	}
+	return []int{ctx.IC + c.Size}
+}
+
+type CicsInstruction struct {
+	SimpleInstruction
+}
+
+func (c *CicsInstruction) Execute(ctx *VmContext) []int {
+	c.MarkProcessed()
+	pos := ctx.GetHandleAbendEntry()
+	if pos > 0 {
+		return []int{ctx.IC + 1, pos + 1}
+	}
+	return []int{ctx.IC + 1}
+}
+
+type CicsReturnInstruction struct {
+	SimpleInstruction
+}
+
+func (c *CicsReturnInstruction) Execute(ctx *VmContext) []int {
+	c.MarkProcessed()
+	pos := ctx.GetHandleAbendEntry()
+	if pos > 0 {
+		return []int{pos + 1}
+	}
+	return []int{}
+}
+
+type CicsAbendInstruction struct {
+	SimpleInstruction
+	Cancel bool
+}
+
+func (c *CicsAbendInstruction) Execute(ctx *VmContext) []int {
+	c.MarkProcessed()
+	if c.Cancel {
+		return []int{}
+	}
+	pos := ctx.GetHandleAbendEntry()
+	if pos > 0 {
+		return []int{pos + 1}
+	}
+	return []int{}
+}
+
+type SqlWheneverInstruction struct {
+	SimpleInstruction
+	WheneverCondition string
+	Size              int
+}
+
+func (s *SqlWheneverInstruction) Execute(ctx *VmContext) []int {
+	ctx.AddSqlWhenever(s.WheneverCondition)
+	return []int{ctx.IC + s.Size}
+}
+
+type SqlInstruction struct {
+	SimpleInstruction
+}
+
+func (s *SqlInstruction) Execute(ctx *VmContext) []int {
+	s.MarkProcessed()
+	result := []int{ctx.IC + 1}
+	entries := ctx.GetSqlWheneverEntries()
+	for _, p := range entries {
+		result = append(result, p+1)
+	}
+	return result
 }

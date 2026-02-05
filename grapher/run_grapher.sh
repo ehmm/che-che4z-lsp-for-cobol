@@ -14,7 +14,7 @@ shift 2
 
 MAX_VMS="1000"
 MEMORY="2048"
-USE_GO="false"
+USE_GO=${USE_GO:-"false"}
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in

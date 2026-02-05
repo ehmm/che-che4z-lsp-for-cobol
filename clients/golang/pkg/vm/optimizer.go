@@ -1,9 +1,5 @@
 package vm
 
-import (
-	"github.com/code4z/ccf-cli/pkg/model"
-)
-
 // IbmOptimizer stops execution if a VM reaches the same instruction with the same state.
 type IbmOptimizer struct {
 	// stateMap maps IC (int) -> StateHash (uint64) -> exists (struct{})
@@ -25,12 +21,14 @@ func (o *IbmOptimizer) Apply(vm *VirtualMachine) bool {
 		return false
 	}
 
-	// Skip optimization for branching/control instructions as per original logic
-	switch inst.GetInitialNode().Type {
-	case model.NodeTypeGoto, model.NodeTypePerform:
+	// Skip optimization for branching/control instructions
+	if _, ok := inst.(*VNCell); ok {
 		return false
 	}
-	if _, ok := inst.(*VNCell); ok {
+	if _, ok := inst.(*GotoInstruction); ok {
+		return false
+	}
+	if _, ok := inst.(*PerformInstruction); ok {
 		return false
 	}
 

@@ -41,16 +41,20 @@ COPY --from=go-build /ccf-cli-go /app/bin/ccf-cli-go
 # Copy the Compiled TypeScript App
 COPY --from=ts-build /src/clients/analysis /app/analysis
 
+# Copy the Entrypoint script
+COPY grapher/entrypoint.sh /app/bin/entrypoint.sh
+RUN chmod +x /app/bin/entrypoint.sh
+
 # Copy empty config files if they exist or create them
 RUN mkdir -p /app/.cobolplugin && \
     echo "[]" > /app/.cobolplugin/pgm_conf.json && \
     echo "[]" > /app/.cobolplugin/proc_grps.json
 
-# Create a symlink for the ccf-cli
-RUN cd /app/analysis && npm link
+# Create a symlink for the ccf-cli (pointing to the entrypoint now)
+RUN ln -s /app/bin/entrypoint.sh /usr/local/bin/ccf-cli
 
 # Set environment variables
 ENV JAVA_JAR_PATH=/app/bin/server.jar
 
-# The entrypoint is ccf-cli
-ENTRYPOINT ["ccf-cli"]
+# The entrypoint is the shell script
+ENTRYPOINT ["/app/bin/entrypoint.sh"]

@@ -7,7 +7,7 @@ import (
 type PerformStorageItem struct {
 	VnCellPosition   int
 	RedirectPosition int
-	ProgramUnit      *model.CFASTNode
+	CurrentUnitID    int32
 	PathHead         *PathNode
 }
 
@@ -33,6 +33,7 @@ func NewVmContext(listing *ProgramListing, writer *model.GraphWriter) *VmContext
 		AlterMap:       make(map[int]int),
 		StickyMap:      make(map[string]int),
 		Storage:        make(map[int]PerformStorageItem),
+		CurrentUnitID:  0,
 	}
 }
 
@@ -45,7 +46,7 @@ func (c *VmContext) Clone() *VmContext {
 		AlterMap:       make(map[int]int, len(c.AlterMap)),
 		StickyMap:      make(map[string]int, len(c.StickyMap)),
 		Storage:        make(map[int]PerformStorageItem, len(c.Storage)),
-		PathHead:       c.PathHead, // Persistent linked list head is shared
+		PathHead:       c.PathHead,
 		NestedLevel:    c.NestedLevel,
 		CurrentUnitID:  c.CurrentUnitID,
 	}
@@ -84,6 +85,7 @@ func (c *VmContext) Redirect(defaultPos, performPos int) int {
 	c.Storage[performPos] = PerformStorageItem{
 		VnCellPosition:   defaultPos - 1,
 		RedirectPosition: prev,
+		CurrentUnitID:    c.CurrentUnitID,
 		PathHead:         c.PathHead,
 	}
 	return prev
@@ -97,6 +99,7 @@ func (c *VmContext) DeactivatePerform(performPos int) {
 			c.RedirectMap[item.VnCellPosition+1] = item.RedirectPosition
 		}
 		delete(c.Storage, performPos)
+		c.CurrentUnitID = item.CurrentUnitID
 		c.PathHead = item.PathHead
 	}
 }
@@ -111,8 +114,8 @@ func (c *VmContext) AddToPath() {
 	}
 }
 
-func (c *VmContext) SetCurrentProgramUnitByPosition(pos int) {
-	inst := c.GetInstructionByPosition(pos)
+func (c *VmContext) SetCurrentProgramUnitByPosition(position int) {
+	inst := c.GetInstructionByPosition(position)
 	if inst == nil {
 		return
 	}
@@ -123,10 +126,8 @@ func (c *VmContext) SetCurrentProgramUnitByPosition(pos int) {
 
 	if node.Type == model.NodeTypeParagraph || node.Type == model.NodeTypeSection || node.Type == model.NodeTypeProgram {
 		if c.GraphWriter != nil {
-			// Write the node
 			c.GraphWriter.WriteNode(node.ID, node.Name, string(node.Type), node.Location)
-			// Write the edge from the previous unit
-			if c.CurrentUnitID != 0 {
+			if c.CurrentUnitID != 0 && c.CurrentUnitID != node.ID {
 				c.GraphWriter.WriteEdge(c.CurrentUnitID, node.ID)
 			}
 		}
@@ -183,4 +184,8 @@ func (c *VmContext) GetNestedLevel() int {
 
 func (c *VmContext) GenerateState() *VirtualMachineState {
 	return NewVirtualMachineState(c.RedirectMap, c.AlterMap, c.StickyMap)
+}
+
+func (c *VmContext) RestoreCurrentProgramUnit(unitID int32) {
+	c.CurrentUnitID = unitID
 }
